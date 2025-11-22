@@ -30,10 +30,27 @@ func walkStruct(iface any, prefix string, fn func(fieldv reflect.Value, path, en
 	for i := 0; i < ift.NumField(); i++ {
 		fieldv := ifv.Field(i)
 		t := ift.Field(i)
+
+		if !t.IsExported() {
+			continue
+		}
+
+		if !fieldv.CanInterface() {
+			continue
+		}
+
 		name := t.Name
 		tag, ok := t.Tag.Lookup("mapstructure")
 		if ok {
+			if tag == "-" {
+				continue
+			}
 			name = tag
+		}
+
+		jsonTag := t.Tag.Get("json")
+		if jsonTag == "-" {
+			continue
 		}
 
 		path := name
@@ -44,8 +61,10 @@ func walkStruct(iface any, prefix string, fn func(fieldv reflect.Value, path, en
 		envKey := strings.ToUpper(strings.ReplaceAll(path, ".", "_"))
 
 		if fieldv.Kind() == reflect.Struct {
-			if err := walkStruct(fieldv.Addr().Interface(), path, fn); err != nil {
-				return err
+			if fieldv.CanAddr() && fieldv.Addr().CanInterface() {
+				if err := walkStruct(fieldv.Addr().Interface(), path, fn); err != nil {
+					return err
+				}
 			}
 		} else {
 			if err := fn(fieldv, path, envKey); err != nil {
