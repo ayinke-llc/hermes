@@ -14,9 +14,16 @@ import (
 //	}
 //
 // if your envPrefix is XXX, it can be set in env like XXX_DSN
-func BindEnvs(v *viper.Viper, envPrefix string, iface any) { bindEnvs(v, envPrefix, "", iface) }
+func BindEnvs(v *viper.Viper, envPrefix string, iface any) {
+	walkStruct(iface, "", func(fieldv reflect.Value, path, envKey string) error {
+		if err := v.BindEnv(path, envPrefix+envKey); err != nil {
+			panic(err)
+		}
+		return nil
+	})
+}
 
-func bindEnvs(v *viper.Viper, envPrefix string, prefix string, iface any) {
+func walkStruct(iface any, prefix string, fn func(fieldv reflect.Value, path, envKey string) error) error {
 	ifv := reflect.Indirect(reflect.ValueOf(iface))
 	ift := ifv.Type()
 
@@ -34,14 +41,17 @@ func bindEnvs(v *viper.Viper, envPrefix string, prefix string, iface any) {
 			path = prefix + "." + name
 		}
 
-		switch fieldv.Kind() {
-		case reflect.Struct:
-			bindEnvs(v, envPrefix, path, fieldv.Addr().Interface())
-		default:
-			envKey := strings.ToUpper(strings.ReplaceAll(path, ".", "_"))
-			if err := v.BindEnv(path, envPrefix+envKey); err != nil {
-				panic(err)
+		envKey := strings.ToUpper(strings.ReplaceAll(path, ".", "_"))
+
+		if fieldv.Kind() == reflect.Struct {
+			if err := walkStruct(fieldv.Addr().Interface(), path, fn); err != nil {
+				return err
+			}
+		} else {
+			if err := fn(fieldv, path, envKey); err != nil {
+				return err
 			}
 		}
 	}
+	return nil
 }
