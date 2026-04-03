@@ -20,7 +20,10 @@ func Export(w io.Writer, cfg any, exportType ExportType, envPrefix string) error
 		enc.SetIndent("", "  ")
 		return enc.Encode(cfg)
 	case ExportTypeYml:
-		return yaml.NewEncoder(w).Encode(cfg)
+		enc := yaml.NewEncoder(w)
+		enc.SetIndent(2)
+
+		return enc.Encode(cfg)
 	case ExportTypeEnv:
 		return exportEnv(w, cfg, envPrefix, "")
 	default:
